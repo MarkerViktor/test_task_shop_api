@@ -1,4 +1,4 @@
-create type "user_role" as enum ("regular", "admin")
+create type "user_role" as enum ('regular', 'admin');
 
 create table "user" (
   id        serial    primary key,
