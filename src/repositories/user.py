@@ -6,7 +6,7 @@ from src.services.user import UserRepositoryProtocol
 
 class UserRepository(UserRepositoryProtocol, BaseRepository):
     async def create_user(self, type_: entities.UserType, is_active: bool) -> entities.User:
-        query = user.insert().values(type=type_, is_active=is_active)
+        query = user.insert().values(type=type_, is_active=is_active).returning(user)
         record = await self.db.fetch_one(query)
         return entities.User.from_db(record)
 
