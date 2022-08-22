@@ -14,13 +14,16 @@ class UserRepositoryProtocol(typing.Protocol):
     @abstractmethod
     async def change_user_is_activated(self, user_id: int, is_active: bool) -> None: ...
 
+    @abstractmethod
+    async def create_user(self, type_: entities.UserType, is_active: bool) -> entities.User: ...
+
 
 class UserNotExist(Exception):
     pass
 
 class UserService:
-    def __init__(self, user_repository: UserRepositoryProtocol):
-        self.repository = user_repository
+    def __init__(self, repository: UserRepositoryProtocol):
+        self.repository = repository
 
     async def get_users(self, limit: int = 10, offset: int = 0) -> list[entities.User]:
         return await self.repository.get_users(limit, offset)
@@ -29,3 +32,6 @@ class UserService:
         if not await self.repository.check_user_exist(user_id):
             raise UserNotExist(f'User(id={user_id}) not exist.')
         await self.repository.change_user_is_activated(user_id, is_active)
+
+    async def create_user(self, type_: entities.UserType, is_active: bool = False) -> entities.User:
+        return await self.repository.create_user(type_, is_active)
