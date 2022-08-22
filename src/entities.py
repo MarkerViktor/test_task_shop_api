@@ -44,3 +44,13 @@ class Transaction:
     payment_account_id: int
     amount_rub: decimal.Decimal
 
+
+@dataclasses.dataclass
+class AuthCredentials:
+    user_id: int
+    login: str
+    password_hash: bytes
+
+    @classmethod
+    def from_db(cls, record):
+        return cls(record.id, record.login, record.password_hash)

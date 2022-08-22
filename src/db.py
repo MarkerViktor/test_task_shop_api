@@ -36,9 +36,8 @@ transaction = sa.Table(
 )
 
 auth_credentials = sa.Table(
-    'user_auth_credentials', metadata,
+    'user_auth_credential', metadata,
     sa.Column('user_id', sa.Integer, sa.ForeignKey('user.id'), primary_key=True),
     sa.Column('login', sa.Text, nullable=False),
     sa.Column('password_hash', sa.BINARY, nullable=False),
-    sa.Column('password_salt', sa.BINARY, nullable=False),
 )

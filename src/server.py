@@ -2,8 +2,11 @@ import databases
 import sanic
 
 from src import config
+from src.handlers.auth import api_auth
 from src.handlers.user import api_user
+from src.repositories.auth import AuthRepository
 from src.repositories.user import UserRepository
+from src.services.auth import AuthService
 from src.services.user import UserService
 
 
@@ -22,10 +25,16 @@ def init() -> sanic.Sanic:
     app.register_listener(deinit_db, 'before_server_stop')
 
     app.ctx.user_service = UserService(
-        user_repository=UserRepository(app.ctx.db)
+        repository=UserRepository(app.ctx.db)
+    )
+
+    app.ctx.auth_service = AuthService(
+        repository=AuthRepository(app.ctx.db),
+        user_service=app.ctx.user_service,
     )
 
     app.blueprint(api_user)
+    app.blueprint(api_auth)
 
     return app
 
