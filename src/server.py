@@ -18,7 +18,7 @@ async def deinit_db(app: sanic.Sanic):
 
 
 def init() -> sanic.Sanic:
-    app = sanic.Sanic(__name__)
+    app = sanic.Sanic('shop_api')
 
     app.ctx.db = databases.Database(config.DB_URL)
     app.register_listener(init_db, 'before_server_start')
@@ -37,7 +37,3 @@ def init() -> sanic.Sanic:
     app.blueprint(api_auth)
 
     return app
-
-
-if __name__ == '__main__':
-    init().run('127.0.0.1', 8080, auto_reload=True)

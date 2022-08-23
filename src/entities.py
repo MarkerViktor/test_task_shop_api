@@ -1,6 +1,7 @@
 import dataclasses
 import decimal
 import enum
+import uuid
 
 
 class UserType(str, enum.Enum):
@@ -47,10 +48,21 @@ class Transaction:
 
 @dataclasses.dataclass
 class AuthCredentials:
+    id: int
     user_id: int
     login: str
     password_hash: bytes
 
     @classmethod
-    def from_db(cls, record):
-        return cls(record.id, record.login, record.password_hash)
+    def from_db(cls, record) -> 'AuthCredentials':
+        return cls(record.id, record.user_id, record.login, record.password_hash)
+
+
+@dataclasses.dataclass
+class ActivationToken:
+    token: uuid.UUID
+    user_id: int
+
+    @classmethod
+    def from_db(cls, record) -> 'ActivationToken':
+        return cls(record.token, record.user_id)

@@ -1,8 +1,11 @@
+import uuid
 from dataclasses import asdict
 
+import pydantic
 import sanic
 from sanic import exceptions
 
+from src.handlers.utils import require, PydanticQuery
 from src.services import user
 
 
@@ -28,3 +31,18 @@ async def activate_user(r: sanic.Request, user_id: int) -> sanic.HTTPResponse:
     except user.UserNotExist as e:
         raise exceptions.NotFound(e)
     return sanic.HTTPResponse(status=200)
+
+
+class ActivateByLinkQuery(pydantic.BaseModel):
+    token: uuid.UUID
+
+@api_user.get('/user/activate/')
+@require(query=PydanticQuery(ActivateByLinkQuery))
+async def activate_user_by_token(r: sanic.Request, query: ActivateByLinkQuery) -> sanic.HTTPResponse:
+    user_service: user.UserService = r.app.ctx.user_service
+    try:
+        await user_service.activate_user_by_token(query.token)
+    except (user.InvalidActivationToken, user.UserAlreadyActivated) as e:
+        raise exceptions.NotFound(e)
+    else:
+        return sanic.HTTPResponse(status=200)

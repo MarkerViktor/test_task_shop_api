@@ -1,7 +1,9 @@
+import asyncio
 import dataclasses
 import hashlib
 import os
 import typing
+import uuid
 from abc import abstractmethod
 
 import jwt
@@ -13,10 +15,10 @@ from src.services.user import UserService
 
 class AuthRepositoryProtocol(typing.Protocol):
     @abstractmethod
-    async def get_credentials_by_login(self, login: str) -> entities.AuthCredentials | None: ...
+    async def create_credentials(self, user_id: int, login: str, password_hash: bytes) -> entities.AuthCredentials: ...
 
     @abstractmethod
-    async def create_credentials(self, user_id: int, login: str, password_hash: bytes) -> entities.AuthCredentials: ...
+    async def get_credentials_by_login(self, login: str) -> entities.AuthCredentials | None: ...
 
 
 class AuthService:
@@ -27,25 +29,34 @@ class AuthService:
     async def sign_in(self, login: str, password: str) -> 'SignInResult':
         credentials = await self._repository.get_credentials_by_login(login)
         if credentials is None:
-            raise UserNotExist(f'User with login "{login}" does not exist.')
+            raise LoginNotExist(login)
+
         saved_hash, salt = _split_to_hash_and_salt(credentials.password_hash)
         if saved_hash != _hash_password(password, salt):
-            raise InvalidPassword(f'Provided password "{password}" is invalid.')
-        token = _generate_jwt_token(credentials.user_id)
-        return SignInResult(token)
+            raise InvalidPassword(password)
+
+        payload = {
+            'user_id': credentials.user_id
+        }
+        token = _encode_jwt_token(payload)
+        return SignInResult(auth_token=token)
 
     async def sign_up(self, login: str, password: str) -> 'SignUpResult':
         credentials = await self._repository.get_credentials_by_login(login)
         if credentials is not None:
-            raise UserAlreadyExist(f'User with login "{login}" has already exist.')
-        user = await self._user_service.create_user(
-            type_=entities.UserType.regular,
-            is_active=False,
-        )
+            raise LoginAlreadyExist(login)
+
+        user = await self._user_service.create_user(entities.UserType.regular, is_active=False)
+
         salt = _generate_salt()
         password_hash = _hash_password(password, salt) + salt
-        await self._repository.create_credentials(user.id, login, password_hash)
-        return SignUpResult('test')
+
+        _, activation_token = await asyncio.gather(
+            self._repository.create_credentials(user.id, login, password_hash),
+            self._user_service.create_activation_token(user.id)
+        )
+        return SignUpResult(activation_token=activation_token.token)
+
 
 def _generate_salt() -> bytes:
     return os.urandom(config.PASSWORD_SALT_LENGTH)
@@ -62,24 +73,36 @@ def _split_to_hash_and_salt(data: bytes) -> tuple[bytes, bytes]:
     salt_length = config.PASSWORD_SALT_LENGTH
     return data[:salt_length], data[salt_length:]
 
-def _generate_jwt_token(user_id: int) -> str:
-    return jwt.encode({'user_id': user_id}, config.JWT_SECRET)
+def _encode_jwt_token(payload: dict[str, typing.Any]) -> str:
+    return jwt.encode(payload, config.JWT_SECRET, config.JWT_ALGORITHM)
+
+def _decode_jwt_token(token: str) -> dict[str, typing.Any] | None:
+    try:
+        payload = jwt.decode(token, config.JWT_SECRET, config.JWT_ALGORITHM)
+    except jwt.exceptions.DecodeError:
+        return None
+    else:
+        return payload
 
 
 @dataclasses.dataclass
 class SignInResult:
-    token: str
+    auth_token: str
 
 class InvalidPassword(Exception):
-    pass
+    def __init__(self, password: str):
+        super().__init__(f'Provided password "{password}" is invalid.')
 
-class UserNotExist(Exception):
-    pass
+class LoginNotExist(Exception):
+    def __init__(self, login: str):
+        super().__init__(f'User with provided login "{login}" does not exist.')
 
 
 @dataclasses.dataclass
 class SignUpResult:
-    activation_code: str
+    activation_token: uuid.UUID
 
-class UserAlreadyExist(Exception):
-    pass
+class LoginAlreadyExist(Exception):
+    def __init__(self, login: str):
+        super().__init__(f'User with provided login "{login}" has already exist.')
+

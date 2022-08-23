@@ -21,7 +21,7 @@ class require:
 
     def __call__(self, handler: Handler) -> Handler:
         @functools.wraps(handler)
-        async def wrapper_handler(request: sanic.Request, *args, **kwargs) -> sanic.HTTPResponse:
+        async def wrapper_handler(request: sanic.Request, *args, **kwargs) -> sanic.HTTPResponse | typing.Any:
             nonlocal self, handler
 
             for checker in self._checkers:
@@ -47,11 +47,25 @@ class PydanticBody(ControllerRequirement):
     def __init__(self, pydantic_model: typing.Type[pydantic.BaseModel]):
         self._pydantic_model = pydantic_model
 
-    async def prepare_requirement(self, r: sanic.Request) -> sanic.HTTPResponse:
-        if r.content_type != 'application/json':
-            raise exceptions.BadRequest('Required application/json content.')
+    async def prepare_requirement(self, r: sanic.Request) -> pydantic.BaseModel:
         try:
             pydantic_data = self._pydantic_model.parse_obj(r.json)
         except pydantic.ValidationError as e:
-            raise exceptions.BadRequest(f"Json data has wrong schema or types. {e}")
+            raise exceptions.BadRequest(f'Json data has wrong schema or types:\n{e}')
+        return pydantic_data
+
+
+class PydanticQuery(ControllerRequirement):
+    def __init__(self, pydantic_model: typing.Type[pydantic.BaseModel]):
+        self._pydantic_model = pydantic_model
+
+    async def prepare_requirement(self, r: sanic.Request) -> pydantic.BaseModel:
+        query_args = {
+            key: (value if len(value) > 1 else value[0])
+            for key, value in r.args.items()
+        }
+        try:
+            pydantic_data = self._pydantic_model.parse_obj(query_args)
+        except pydantic.ValidationError as e:
+            raise exceptions.BadRequest(f'Json data has wrong schema or types:\n{e}')
         return pydantic_data

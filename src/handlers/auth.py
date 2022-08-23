@@ -2,10 +2,10 @@ import sanic
 from sanic import exceptions
 import pydantic
 
-from src.handlers.utils import require, PydanticBody, pydantic_response
+from src.handlers.utils import require, PydanticBody, pydantic_response, PydanticQuery
 from src.services import auth
 
-api_auth = sanic.Blueprint('api_auth')
+api_auth = sanic.Blueprint('api_auth', url_prefix='/auth')
 
 
 class SignInRequest(pydantic.BaseModel):
@@ -21,9 +21,9 @@ async def sign_in(r: sanic.Request, payload: SignInRequest) -> sanic.HTTPRespons
     auth_service: auth.AuthService = r.app.ctx.auth_service
     try:
         result = await auth_service.sign_in(payload.login, payload.password)
-    except (auth.UserNotExist, auth.InvalidPassword) as e:
+    except (auth.LoginNotExist, auth.InvalidPassword) as e:
         raise exceptions.BadRequest(e)
-    return pydantic_response(SignInResponse(token=result.token))
+    return pydantic_response(SignInResponse(token=result.auth_token))
 
 
 class SignUpRequest(pydantic.BaseModel):
@@ -39,6 +39,8 @@ async def sign_up(r: sanic.Request, payload: SignUpRequest) -> sanic.HTTPRespons
     auth_service: auth.AuthService = r.app.ctx.auth_service
     try:
         result = await auth_service.sign_up(payload.login, payload.password)
-    except auth.UserAlreadyExist as e:
+    except auth.LoginAlreadyExist as e:
         raise exceptions.BadRequest(e)
-    return pydantic_response(SignUpResponse(activation_link=result.activation_code))
+    url = r.app.url_for('api_user.activate_user_by_token',
+                        token=result.activation_token)
+    return pydantic_response(SignUpResponse(activation_link=url))

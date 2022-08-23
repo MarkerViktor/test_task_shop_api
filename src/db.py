@@ -1,4 +1,5 @@
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import UUID
 
 from src import entities
 
@@ -24,20 +25,27 @@ product = sa.Table(
 payment_account = sa.Table(
     'payment_account', metadata,
     sa.Column('id', sa.Integer, primary_key=True),
-    sa.Column('user_id', sa.Integer, sa.ForeignKey('user.id'), nullable=False),
+    sa.Column('user_id', sa.Integer, sa.ForeignKey(user.c.id), nullable=False),
     sa.Column('balance_rub', sa.Numeric, nullable=False, default=0),
 )
 
 transaction = sa.Table(
     'transaction', metadata,
     sa.Column('id', sa.Integer, primary_key=True),
-    sa.Column('payment_account_id', sa.Integer, sa.ForeignKey('payment_account.id'), nullable=False),
+    sa.Column('payment_account_id', sa.Integer, sa.ForeignKey(payment_account.c.id), nullable=False),
     sa.Column('amount_rum', sa.Numeric, nullable=False),
 )
 
 auth_credentials = sa.Table(
-    'user_auth_credential', metadata,
-    sa.Column('user_id', sa.Integer, sa.ForeignKey('user.id'), primary_key=True),
+    'auth_credentials', metadata,
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('user_id', sa.Integer, sa.ForeignKey(user.c.id), nullable=False, unique=True),
     sa.Column('login', sa.Text, nullable=False),
     sa.Column('password_hash', sa.BINARY, nullable=False),
+)
+
+activation_token = sa.Table(
+    'activation_token', metadata,
+    sa.Column('token',  UUID(as_uuid=True), primary_key=True),
+    sa.Column('user_id', sa.Integer, sa.ForeignKey(user.c.id), nullable=False, unique=True),
 )
