@@ -4,6 +4,7 @@ import sanic
 from src import config
 from src.handlers.auth import api_auth
 from src.handlers.user import api_user
+from src.middlewares.auth import authenticate_user
 from src.repositories.auth import AuthRepository
 from src.repositories.user import UserRepository
 from src.services.auth import AuthService
@@ -32,6 +33,8 @@ def init() -> sanic.Sanic:
         repository=AuthRepository(app.ctx.db),
         user_service=app.ctx.user_service,
     )
+
+    app.register_middleware(authenticate_user, 'request')
 
     app.blueprint(api_user)
     app.blueprint(api_auth)

@@ -33,6 +33,11 @@ class UserService:
     def __init__(self, repository: UserRepositoryProtocol):
         self._repository = repository
 
+    async def get_user(self, id_: int) -> entities.User:
+        if user := await self._repository.get_user(id_):
+            return user
+        raise UserNotExist(id_)
+
     async def get_users(self, limit: int = 10, offset: int = 0) -> list[entities.User]:
         return await self._repository.get_users(limit, offset)
 
@@ -46,10 +51,7 @@ class UserService:
         return await self._repository.create_user(type_, is_active)
 
     async def create_activation_token(self, user_id: int) -> entities.ActivationToken:
-        user = await self._repository.get_user(user_id)
-        if user is None:
-            raise UserNotExist(user_id)
-
+        user = await self.get_user(user_id)
         if user.is_active:
             raise UserAlreadyActivated(user_id)
 

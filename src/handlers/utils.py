@@ -6,16 +6,18 @@ import pydantic
 import sanic
 from sanic import exceptions
 
+from src import entities
+from src.services.auth import AuthResult
 
 Handler = typing.Callable[[sanic.Request, ...], typing.Awaitable[sanic.HTTPResponse]]
 
-class ControllerRequirement(abc.ABC):
+class HandlerRequirement(abc.ABC):
     @abc.abstractmethod
-    async def prepare_requirement(self, request: sanic.Request) -> sanic.HTTPResponse | typing.Any: ...
+    async def prepare_requirement(self, r: sanic.Request) -> sanic.HTTPResponse | typing.Any: ...
 
 
 class require:
-    def __init__(self, *checkers: ControllerRequirement, **requirements: ControllerRequirement):
+    def __init__(self, *checkers: HandlerRequirement, **requirements: HandlerRequirement):
         self._checkers = checkers
         self._requirements = requirements  # Результат передаётся как keyword-аргументы в обработчик
 
@@ -43,7 +45,7 @@ def pydantic_response(data: pydantic.BaseModel) -> sanic.HTTPResponse:
     return sanic.json(data.dict())
 
 
-class PydanticBody(ControllerRequirement):
+class PydanticBody(HandlerRequirement):
     def __init__(self, pydantic_model: typing.Type[pydantic.BaseModel]):
         self._pydantic_model = pydantic_model
 
@@ -55,7 +57,7 @@ class PydanticBody(ControllerRequirement):
         return pydantic_data
 
 
-class PydanticQuery(ControllerRequirement):
+class PydanticQuery(HandlerRequirement):
     def __init__(self, pydantic_model: typing.Type[pydantic.BaseModel]):
         self._pydantic_model = pydantic_model
 
@@ -69,3 +71,25 @@ class PydanticQuery(ControllerRequirement):
         except pydantic.ValidationError as e:
             raise exceptions.BadRequest(f'Json data has wrong schema or types:\n{e}')
         return pydantic_data
+
+
+class Auth(HandlerRequirement):
+    def __init__(self, *, allowed: typing.Sequence[entities.UserType] = None,
+                 denied: typing.Sequence[entities.UserType] = None):
+        assert not all((allowed is not None, denied is not None)), 'Provided both of allowed and denied.'
+        self._allowed = allowed
+        self._denied = denied
+
+    async def prepare_requirement(self, r: sanic.Request) -> sanic.HTTPResponse | typing.Any:
+        auth: AuthResult = r.ctx.auth
+        if auth is None:
+            raise exceptions.Unauthorized('"Authentication" header is absent.')
+        if not auth.token_is_valid:
+            raise exceptions.Unauthorized('Bad authentication credentials.')
+
+        not_allowed = self._allowed is not None and auth.user_type not in self._allowed
+        denied = self._denied is not None and auth.user_type in self._denied
+        if not_allowed or denied:
+            raise exceptions.Forbidden('Bad user type.')
+
+        return auth.user_id

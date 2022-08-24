@@ -35,8 +35,11 @@ class AuthService:
         if saved_hash != _hash_password(password, salt):
             raise InvalidPassword(password)
 
+        user = await self._user_service.get_user(credentials.user_id)
+
         payload = {
-            'user_id': credentials.user_id
+            'user_id': user.id,
+            'user_type': user.type,
         }
         token = _encode_jwt_token(payload)
         return SignInResult(auth_token=token)
@@ -56,6 +59,18 @@ class AuthService:
             self._user_service.create_activation_token(user.id)
         )
         return SignUpResult(activation_token=activation_token.token)
+
+    @staticmethod
+    async def authenticate(token: str) -> 'AuthResult':
+        if payload := _decode_jwt_token(token):
+            result = AuthResult(
+                token_is_valid=True,
+                user_id=payload['user_id'],
+                user_type=entities.UserType(payload['user_type'])
+            )
+            return result
+        else:
+            return AuthResult(token_is_valid=False)
 
 
 def _generate_salt() -> bytes:
@@ -106,3 +121,9 @@ class LoginAlreadyExist(Exception):
     def __init__(self, login: str):
         super().__init__(f'User with provided login "{login}" has already exist.')
 
+
+@dataclasses.dataclass
+class AuthResult:
+    token_is_valid: bool
+    user_id: int | None = None
+    user_type: entities.UserType | None = None
