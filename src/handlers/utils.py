@@ -2,6 +2,7 @@ import abc
 import functools
 import typing
 
+import databases
 import pydantic
 import sanic
 from sanic import exceptions
@@ -45,7 +46,7 @@ def pydantic_response(data: pydantic.BaseModel) -> sanic.HTTPResponse:
     return sanic.json(data.dict())
 
 
-class PydanticBody(HandlerRequirement):
+class PydanticJson(HandlerRequirement):
     def __init__(self, pydantic_model: typing.Type[pydantic.BaseModel]):
         self._pydantic_model = pydantic_model
 
@@ -80,7 +81,7 @@ class Auth(HandlerRequirement):
         self._allowed = allowed
         self._denied = denied
 
-    async def prepare_requirement(self, r: sanic.Request) -> sanic.HTTPResponse | typing.Any:
+    async def prepare_requirement(self, r: sanic.Request) -> sanic.HTTPResponse | AuthResult:
         auth: AuthResult = r.ctx.auth
         if auth is None:
             raise exceptions.Unauthorized('"Authentication" header is absent.')
@@ -92,4 +93,13 @@ class Auth(HandlerRequirement):
         if not_allowed or denied:
             raise exceptions.Forbidden('Bad user type.')
 
-        return auth.user_id
+        return auth
+
+
+def transaction(handler: Handler) -> Handler:
+    @functools.wraps(handler)
+    async def wrapper(request: sanic.Request, *args, **kwargs) -> sanic.HTTPResponse:
+        db: databases.Database = request.app.ctx.db
+        async with db.transaction():
+            return await handler(request, *args, *kwargs)
+    return wrapper
