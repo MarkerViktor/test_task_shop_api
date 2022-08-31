@@ -2,7 +2,7 @@ import sanic
 from sanic import exceptions
 import pydantic
 
-from src.handlers.utils import require, PydanticBody, pydantic_response, PydanticQuery
+from src.handlers.utils import require, PydanticJson, pydantic_response, transaction
 from src.services import auth
 
 api_auth = sanic.Blueprint('api_auth', url_prefix='/auth')
@@ -16,7 +16,7 @@ class SignInResponse(pydantic.BaseModel):
     token: str
 
 @api_auth.post('/sign_in/')
-@require(payload=PydanticBody(SignInRequest))
+@require(payload=PydanticJson(SignInRequest))
 async def sign_in(r: sanic.Request, payload: SignInRequest) -> sanic.HTTPResponse:
     auth_service: auth.AuthService = r.app.ctx.auth_service
     try:
@@ -34,7 +34,8 @@ class SignUpResponse(pydantic.BaseModel):
     activation_link: str
 
 @api_auth.post('/sign_up/')
-@require(payload=PydanticBody(SignUpRequest))
+@require(payload=PydanticJson(SignUpRequest))
+@transaction
 async def sign_up(r: sanic.Request, payload: SignUpRequest) -> sanic.HTTPResponse:
     auth_service: auth.AuthService = r.app.ctx.auth_service
     try:
